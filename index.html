@@ -9,6 +9,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
+<script defer src="https://cdn.jsdelivr.net/npm/@pollinations/ui@0.1.0-alpha.20/dist/connect.js"></script>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏢</text></svg>">
 </head>
 <body>
@@ -111,21 +112,10 @@
   <div class="modal-card">
     <button class="modal-close" id="wallet-close" aria-label="Close">×</button>
     <h3>Connect your Pollen</h3>
-    <p>The agents in this building work for whoever is visiting. Connect your own Pollinations key and their work is paid from <em>your</em> Pollen, never the building's.</p>
-
-    <h4>Option 1: sign in with Pollinations (BYOP)</h4>
-    <p class="small">The official bring-your-own-Pollen flow. Pollinations shows a consent screen and returns a scoped key with a budget and an expiry that you control.</p>
-    <button id="byop-btn" class="btn primary block">Sign in with Pollinations</button>
-    <p id="byop-note" class="small warn"></p>
-
-    <h4>Option 2: paste your own API key</h4>
-    <p class="small">Get a key at <a href="https://enter.pollinations.ai/keys" target="_blank" rel="noopener">enter.pollinations.ai/keys</a>. The key is stored only in this browser (localStorage) and is sent only to gen.pollinations.ai.</p>
-    <div class="key-row">
-      <input id="key-input" type="password" placeholder="sk_… or your API key" autocomplete="off">
-      <button id="key-save" class="btn">Save key</button>
-    </div>
-    <p id="key-msg" class="small"></p>
-    <button id="key-clear" class="btn ghost small" hidden>Disconnect and forget key</button>
+    <p>The agents in this building work for whoever is visiting. Sign in with Pollinations and their work is paid from <em>your</em> Pollen, never the building's.</p>
+    <p class="small">Pollinations shows a consent screen and returns a scoped key with a budget and an expiry that you control. The key stays in this tab (sessionStorage) and is sent only to gen.pollinations.ai.</p>
+    <polli-connect budget="10" expiry="7" models="text"></polli-connect>
+    <p id="connect-status" class="small"></p>
   </div>
 </div>
 
