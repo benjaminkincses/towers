@@ -6,7 +6,7 @@ A building of AI-run companies. Every floor is one business, run by one person a
 
 Built for the Pollinations quest [Build your own tower of AI-run companies](https://github.com/pollinations/pollinations/issues/17999), as a small, self-contained take on [Towers](https://thetowers.ai/).
 
-**Live app:** https://dextheking1.github.io/towers/
+**Live app:** https://benjaminkincses.github.io/towers/
 
 ## What you can do
 
@@ -18,10 +18,7 @@ Built for the Pollinations quest [Build your own tower of AI-run companies](http
 
 ## Bring your own Pollen
 
-The agents run on Pollinations and spend the **visitor's own Pollen**, never the building's. Two routes, following [BRING_YOUR_OWN_POLLEN.md](https://github.com/pollinations/pollinations/blob/main/BRING_YOUR_OWN_POLLEN.md):
-
-1. **Paste your own API key** (Connect your Pollen, option 2). Get one at [enter.pollinations.ai/keys](https://enter.pollinations.ai/keys). The key is stored only in your browser's localStorage and is sent only to `gen.pollinations.ai`. It is checked against `GET /account/key` before it is saved.
-2. **Sign in with Pollinations (BYOP OAuth)**. The app implements the documented authorization-code flow with PKCE, including the fragment-flow return. It activates when an App Key (`pk_...`) registered for this page's URL is set as `POLLINATIONS_APP_KEY` in `app.js`. The repo ships without one, so the button explains this and route 1 works out of the box.
+The agents run on Pollinations and spend the **visitor's own Pollen**, never the building's. Sign-in is the [`<polli-connect>` drop-in](https://github.com/pollinations/pollinations/blob/main/BRING_YOUR_OWN_POLLEN.md) from `@pollinations/ui`: Pollinations shows a consent screen and returns a scoped key with a budget and an expiry that you control. The element keeps the key in sessionStorage (this tab only), and the app reads it from the element's `apiKey` property. There is no paste-a-key box, and the key is sent only to `gen.pollinations.ai`.
 
 Model calls use `POST https://gen.pollinations.ai/v1/chat/completions` with the visitor's key. Default model: `openai/gpt-5.4-nano`.
 
