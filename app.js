@@ -7,16 +7,13 @@
 const GEN_BASE = "https://gen.pollinations.ai";
 const MODEL = "openai/gpt-5.4-nano";
 
-// BYOP (Bring Your Own Pollen), per BRING_YOUR_OWN_POLLEN.md.
-// To enable the one-click sign-in, register an App Key (pk_...) at
-// enter.pollinations.ai/keys with this page's URL as a Redirect URI and set
-// it here. Until then the button explains itself and paste-a-key works.
-const POLLINATIONS_APP_KEY = "";
+// Sign-in is the <polli-connect> drop-in from @pollinations/ui, per
+// BRING_YOUR_OWN_POLLEN.md. It runs the OAuth flow itself and keeps the
+// user's key in sessionStorage; the app reads it from the element's
+// apiKey property (see the wallet section below). No paste-a-key box.
 
-const LS_KEY = "towers.pollinationsKey";
 const LS_LOG = "towers.dailylog.";
 const LS_APPS = "towers.applications";
-const LS_PKCE = "towers.pkce";
 
 const $ = (sel, el) => (el || document).querySelector(sel);
 const $$ = (sel, el) => Array.from((el || document).querySelectorAll(sel));
@@ -26,7 +23,7 @@ const state = {
   selectedFloor: 9,
   officeId: null,
   ry: -16,
-  apiKey: localStorage.getItem(LS_KEY) || "",
+  apiKey: "",
 };
 
 // ---------- small utils ----------
@@ -80,14 +77,6 @@ async function chatCompletion(messages) {
   const text = data?.choices?.[0]?.message?.content;
   if (!text) throw new Error("Empty reply from the model.");
   return text.trim();
-}
-
-async function validateKey(key) {
-  const res = await fetch(GEN_BASE + "/account/key", {
-    headers: { "Authorization": "Bearer " + key },
-  });
-  if (!res.ok) throw new Error("Key check failed (" + res.status + ")");
-  return res.json();
 }
 
 // ---------- demo generator (no key, or fallback) ----------
@@ -516,7 +505,7 @@ $("#rent-form").addEventListener("submit", e => {
   e.target.querySelectorAll("input,textarea").forEach(el => { el.value = ""; });
 });
 
-// ---------- wallet / BYOP ----------
+// ---------- wallet / sign-in ----------
 
 function renderWallet() {
   const st = $("#wallet-status");
@@ -531,133 +520,29 @@ function renderWallet() {
   }
 }
 
-function openWallet() { $("#wallet-modal").hidden = false; renderWalletModal(); }
+function openWallet() { $("#wallet-modal").hidden = false; syncFromConnect(); }
 function closeWallet() { $("#wallet-modal").hidden = true; }
 $("#wallet-btn").addEventListener("click", openWallet);
 $("#wallet-close").addEventListener("click", closeWallet);
 $("#wallet-modal").addEventListener("click", e => { if (e.target.id === "wallet-modal") closeWallet(); });
 
-function renderWalletModal() {
-  const note = $("#byop-note");
-  const btn = $("#byop-btn");
-  if (!POLLINATIONS_APP_KEY) {
-    note.textContent = "One-click sign-in needs an App Key registered for this page (enter.pollinations.ai/keys). The building ships without one, so use paste-a-key below, or register a key and set POLLINATIONS_APP_KEY in app.js.";
-    btn.disabled = true;
-    btn.classList.add("disabled");
-    btn.setAttribute("aria-disabled", "true");
-    btn.title = "Unavailable: no App Key is registered for this page yet";
-  } else {
-    note.textContent = "";
-    btn.disabled = false;
-    btn.classList.remove("disabled");
-    btn.removeAttribute("aria-disabled");
-    btn.removeAttribute("title");
-  }
-  $("#key-clear").hidden = !state.apiKey;
-  $("#key-msg").textContent = state.apiKey ? "A key is connected on this device." : "";
-}
-
-// PKCE helpers (OAuth code flow from BRING_YOUR_OWN_POLLEN.md)
-function b64url(bytes) {
-  return btoa(String.fromCharCode(...new Uint8Array(bytes)))
-    .replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-}
-async function sha256(str) {
-  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(str));
-  return b64url(buf);
-}
-
-$("#byop-btn").addEventListener("click", async () => {
-  if (!POLLINATIONS_APP_KEY) return;
-  const verifier = b64url(crypto.getRandomValues(new Uint8Array(32)));
-  const challenge = await sha256(verifier);
-  const csrf = b64url(crypto.getRandomValues(new Uint8Array(16)));
-  sessionStorage.setItem(LS_PKCE, JSON.stringify({ verifier, csrf }));
-  const params = new URLSearchParams({
-    response_type: "code",
-    client_id: POLLINATIONS_APP_KEY,
-    redirect_uri: location.origin + location.pathname,
-    scope: "profile usage",
-    models: "text",
-    budget: "10",
-    expiry: "7",
-    state: csrf,
-    code_challenge: challenge,
-    code_challenge_method: "S256",
-  });
-  location.href = "https://enter.pollinations.ai/authorize?" + params.toString();
-});
-
-async function handleAuthReturn() {
-  // Legacy fragment flow: #api_key=sk_...
-  if (location.hash.includes("api_key=")) {
-    const frag = new URLSearchParams(location.hash.slice(1));
-    const key = frag.get("api_key");
-    if (key) {
-      state.apiKey = key;
-      localStorage.setItem(LS_KEY, key);
-      history.replaceState(null, "", location.pathname + location.search);
-      renderWallet();
-      return;
-    }
-  }
-  // OAuth code flow: ?code=...
-  const q = new URLSearchParams(location.search);
-  const code = q.get("code");
-  if (code && POLLINATIONS_APP_KEY) {
-    try {
-      const saved = JSON.parse(sessionStorage.getItem(LS_PKCE) || "null");
-      if (saved && q.get("state") === saved.csrf) {
-        const res = await fetch("https://enter.pollinations.ai/api/oauth/token", {
-          method: "POST",
-          headers: { "Content-Type": "application/x-www-form-urlencoded" },
-          body: new URLSearchParams({
-            grant_type: "authorization_code",
-            code,
-            client_id: POLLINATIONS_APP_KEY,
-            redirect_uri: location.origin + location.pathname,
-            code_verifier: saved.verifier,
-          }),
-        });
-        const data = await res.json();
-        if (data.access_token) {
-          state.apiKey = data.access_token;
-          localStorage.setItem(LS_KEY, data.access_token);
-        }
-      }
-    } catch {}
-    sessionStorage.removeItem(LS_PKCE);
-    history.replaceState(null, "", location.pathname);
-    renderWallet();
-  }
-}
-
-$("#key-save").addEventListener("click", async () => {
-  const input = $("#key-input");
-  const msg = $("#key-msg");
-  const key = input.value.trim();
-  if (!key) { msg.textContent = "Paste a key first."; return; }
-  msg.textContent = "Checking the key…";
-  try {
-    await validateKey(key);
+// The <polli-connect> element owns the key: it runs the sign-in flow and
+// keeps the key in sessionStorage. Mirror it into state.apiKey whenever it
+// changes, and once on load in case this tab already holds a key.
+function syncFromConnect() {
+  const el = document.querySelector("polli-connect");
+  const key = el && el.apiKey ? el.apiKey : "";
+  if (key !== state.apiKey) {
     state.apiKey = key;
-    localStorage.setItem(LS_KEY, key);
-    input.value = "";
-    msg.textContent = "Connected. The agents now spend your Pollen, on your key only.";
     renderWallet();
-    renderWalletModal();
-  } catch (err) {
-    msg.textContent = "That key did not check out (" + err.message + "). Nothing was saved.";
   }
-});
-
-$("#key-clear").addEventListener("click", () => {
-  state.apiKey = "";
-  localStorage.removeItem(LS_KEY);
-  $("#key-msg").textContent = "Disconnected. The building is back in demo mode.";
-  renderWallet();
-  renderWalletModal();
-});
+  const status = $("#connect-status");
+  if (status) {
+    status.textContent = state.apiKey
+      ? "Connected. The agents now spend your Pollen, on your key only."
+      : "";
+  }
+}
 
 // ---------- boot ----------
 
@@ -669,8 +554,10 @@ function applyHash() {
   else if (h === "rent") showView("rent");
 }
 
-(async function boot() {
-  await handleAuthReturn();
+(function boot() {
+  const connectEl = document.querySelector("polli-connect");
+  if (connectEl) connectEl.addEventListener("change", syncFromConnect);
+  window.addEventListener("load", syncFromConnect);
   buildTower();
   renderFloorPanel();
   renderWallet();
